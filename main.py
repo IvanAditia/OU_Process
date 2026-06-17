@@ -4,17 +4,7 @@ from statsmodels.tsa.stattools import adfuller
 from sklearn.linear_model import LinearRegression
 import numpy as np
 
-df  = pd.read_parquet('data/BTCUSDT_FINAL_DATA.parquet')
-df = df[
-    [
-        'openTime',
-        'open',
-        'high',
-        'low',
-        'close',
-        'fundingRate'
-    ]
-]
+df  = pd.read_parquet('data/ETHUSDT_FUNDING.parquet')
 
 data = df['fundingRate']
 adf_test = adfuller(data)
