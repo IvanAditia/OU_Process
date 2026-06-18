@@ -46,4 +46,6 @@ df['fundingRate'] = df['fundingRate'].astype(float)
 
 df = df.sort_values('fundingTime')
 
-df.to_parquet('data/ETHUSDT_FUNDING.parquet')
+print(df.tail())
+
+# df.to_parquet('data/ETHUSDT_FUNDING.parquet')

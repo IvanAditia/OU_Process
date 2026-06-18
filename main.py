@@ -1,90 +1,191 @@
-from turtle import position
 import pandas as pd
-from statsmodels.tsa.stattools import adfuller
-from sklearn.linear_model import LinearRegression
 import numpy as np
+import matplotlib.pyplot as plt
+import ta
 
-df  = pd.read_parquet('data/ETHUSDT_FUNDING.parquet')
+df  = pd.read_parquet('data/ETHUSDT_2020.parquet')
 
-data = df['fundingRate']
-adf_test = adfuller(data)
+df = df[
+    [
+        'openTime',
+        'open',
+        'high',
+        'low',
+        'close',
+        'volume',
+        'closeTime'
+    ]
+]
 
-adf = adf_test[0]
-pvalue = adf_test[1]
+df['volume'] = df['volume'].astype(float)
+df['close'] = df['close'].astype(float)
+df['high'] = df['high'].astype(float)
+df['low'] = df['low'].astype(float)
+df['adx'] = ta.trend.ADXIndicator(
+        high=df['high'],
+        low=df['low'],
+        close=df['close'],
+        window=14
+    ).adx()
 
-if adf < -3 and pvalue < 0.05:
-    print('Data stationary')
+df['volume_mean'] = df['volume'].rolling(50).mean()
+df['mean'] = df['close'].rolling(50).mean()
+df['sd'] = df['close'].rolling(14).std()
+df = df.dropna().copy()
 
-    # risk
-    initial_balance = 20.0
-    risk = 0.01
-    leverage = 10
-    max_position = 5
-    max_risk = 0.05
-    taker_fee = 0.0005
+window = 100
+inital_balance = 20
+leverage = 10
+taker_fee = 0.0005
 
-    # param
-    position = 0
-    balance = initial_balance
-    equity_curve = []
-    trades = []
-    risk = balance * risk
-    window  = 100
+position = None
+balance = inital_balance
+equity_curve = []
+trades = []
+risk = 1
 
-    df['zscore'] = np.nan
+for i in range(window, len(df)):
+    row = df.iloc[i]
+    close = row['close']
+    volume = row['volume']
+    volume_mean = row['volume_mean']
+    sd = row['sd']
+    mean = row['mean']
+    adx = row['adx']
 
-    for i in range(window, len(df)):
-        train = df.iloc[i-window:i].copy()
+    entry_long = (
+        (close > mean) &
+        (volume > volume_mean) &
+        (adx > 25)
+    )
+    entry_short = (
+        (close < mean) &
+        (volume > volume_mean) & 
+        (adx > 25)
+    )
+    equity_curve.append(balance)
 
-        # membuat data
-        train['Xt'] = train['fundingRate']
-        train['Xt1'] = train['fundingRate'].shift(-1)
+    # entry
+    if position is None:
+
+        price = row['close']
+        # long
+        if entry_long.any():
+            entry = price
+            if pd.isna(sd.any()):
+                continue
+            sl = entry - sd
+            tp = entry + (2 * sd)
+            stop_distance = entry - sl
+            qty = risk / stop_distance
+            notional = qty * entry
+            margin = notional / leverage
+            if margin > balance:
+                continue
+            fee = notional * taker_fee
+            balance -= fee
+            position= {
+                'side' : 'Long',
+                'entry' : entry,
+                'sl' : sl,
+                'tp' : tp,
+                'qty' : qty,
+                'margin' : margin,
+                'entry_index' : i
+            }
+
+        elif entry_short.any():
+            entry = price
+            if pd.isna(sd.any()):
+                continue
+            sl = entry + sd
+            tp = entry - (2 * sd)
+            stop_distance = sl - entry
+            qty = risk / stop_distance
+            notional = qty * entry
+            margin = notional / leverage
+            if margin > balance:
+                continue
+            fee = notional * taker_fee
+            balance -= fee
+            position= {
+                'side' : 'Short',
+                'entry' : entry,
+                'sl' : sl,
+                'tp' : tp,
+                'qty' : qty,
+                'margin' : margin,
+                'entry_index' : i
+            }
+
+    # manage posisi
+    else:
+        high = row['high']
+        low = row['low']
+        exit_price = None
+        reason = None
+
+        # Long
+        if position['side'] == 'Long':
+            if low <= position['sl']:
+                exit_price = position['sl']
+                reason = 'SL'
+
+            elif high >= position['tp']:
+                exit_price = position['tp']
+                reason = 'TP'
+
+            if exit_price:
+                pnl = (
+                    exit_price - position['entry']
+                ) * position['qty']
+                fee = (
+                    exit_price * position['qty']
+                ) * taker_fee
+                pnl -= fee
+                balance += pnl
+                trades.append({
+                    'side' : 'Long',
+                    'entry' : position['entry'],
+                    'exit' : exit_price,
+                    'qty' : position['qty'],
+                    'pnl' : pnl,
+                    'reason' : reason
+                })
+                position = None
         
-        train = train.dropna(subset=['Xt', 'Xt1']).copy()
+        elif position['side'] == 'Short':
+            if high >= position['sl']:
+                exit_price = position['sl']
+                reason = 'SL'
 
-        X = train[['Xt']]
-        y = train['Xt1']
+            elif low <= position['tp']:
+                exit_price = position['tp']
+                reason = 'TP'
 
-        # membuat model regresi
-        model = LinearRegression()
-        model.fit(X, y)
-
-        # mengambil intersept dan phi(b)
-        a = model.intercept_
-        b = model.coef_[0]
-
-        if b < 0:
-            continue
-
-        # menghitung rata-rata(mu)
-        mu = a / (1 - b)
-
-        # menghitung residual(epsilon) = error regresi
-        residuals = y - model.predict(X)
-
-        # menghitung sigma(standar deviasi)
-        sigma = residuals.std()
-
-        # menghitung Z-Score
-        current = df.iloc[i]['fundingRate'] #data saat ini
-        zscore = (current - mu ) / sigma
-
-        df.loc[df.index[i], 'zscore']  = zscore
-        
-        df['signal'] = 0
-
-        df.loc[df['zscore'] > 2, 'signal'] = -1
-        df.loc[df['zscore'] < -2, 'signal'] = 1
-
-        equity_curve.append(balance)
-
-        # entry
-        if position == 0:
-            s = df['signal']
-            # long
-            if s == 1:
-                entry = df['close']
+            if exit_price:
+                pnl = (
+                    exit_price - position['entry']
+                ) * position['qty']
+                fee = (
+                    exit_price * position['qty']
+                ) * taker_fee
+                pnl -= fee
+                balance += pnl
+                trades.append({
+                    'side' : 'Short',
+                    'entry' : position['entry'],
+                    'exit' : exit_price,
+                    'qty' : position['qty'],
+                    'pnl' : pnl,
+                    'reason' : reason
+                })
+                position = None
 
 
-else:
-    print('Data tidak stationary')
+# result
+
+trade = pd.DataFrame(trades)
+print((trade['reason'] == 'TP').sum())
+print((trade['reason'] == 'SL').sum())
+print(balance)

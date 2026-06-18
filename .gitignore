@@ -1,5 +1,3 @@
-/data/BTCUSDT_FINAL_DATA.parquet
-/data/BTCUSDT_FULL_FUNDINGparquet
-/data/BTCUSDT_OHLC.parquet
+/data/random
 /venv
 .env
