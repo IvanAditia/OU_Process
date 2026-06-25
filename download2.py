@@ -6,17 +6,27 @@ if not mt5.initialize():
     print(mt5.last_error())
     quit()
 
-rates = mt5.copy_rates_from_pos(
-    "XAUUSD",
+rates_silver = mt5.copy_rates_from_pos(
+    "XAGUSD.pc",
     mt5.TIMEFRAME_M1,
     0,
     99999
 )
-print(rates is None)
+rates_gold = mt5.copy_rates_from_pos(
+    "XAUUSD.pc",
+    mt5.TIMEFRAME_M1,
+    0,
+    99999
+)
+print(rates_silver is None)
+print(rates_gold is None)
 print(mt5.last_error())
-df = pd.DataFrame(rates)
-df['time'] = pd.to_datetime(df['time'], unit='s')
+df_silver = pd.DataFrame(rates_silver)
+df_gold = pd.DataFrame(rates_gold)
+df_silver['time'] = pd.to_datetime(df_silver['time'], unit='s')
+df_gold['time'] = pd.to_datetime(df_gold['time'], unit='s')
 
-df.to_parquet('data/forex_cfd/XAUUSD_M1.parquet')
+df_silver.to_parquet('data/forex_cfd/XAGUSD_M1.parquet')
+df_gold.to_parquet('data/forex_cfd/XAUUSD_M1.parquet')
 
 mt5.shutdown()
