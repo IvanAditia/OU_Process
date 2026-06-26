@@ -42,11 +42,21 @@ print(f"Total signal    : {buy+sell} ({(buy+sell)/total*100:.2f}%)")
 
 initial_balance = 10.00
 balance = initial_balance
+risk = 1
 trades = []
 position = None
 
 for i in range(len(df)):
+    row = df.iloc[i]
+    close = row['close']
     
     # entry
     if position is None:
+
+        #buy
+        if row['zscore'] < -1.5:
+            price = close
+            sl = price - df['sd_price']
+            tp = (row['zscore'] == 0)
+            lot = 
         
