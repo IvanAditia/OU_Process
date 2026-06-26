@@ -1,11 +1,11 @@
-import pandas as pd
-import numpy as np
-import ta
-import matplotlib.pyplot as plt
+import MetaTrader5 as mt5
 
+mt5.initialize()
 
-df_silver = pd.read_parquet('data/forex_cfd/XAGUSD_M1.parquet')
-df_gold = pd.read_parquet('data/forex_cfd/XAUUSD_M1.parquet')
+info = mt5.symbol_info("XAUUSD")
 
-print(df_silver)
-print(df_gold)
+print("Contract Size :", info.trade_contract_size)
+print("Tick Size     :", info.trade_tick_size)
+print("Tick Value    :", info.trade_tick_value)
+
+mt5.shutdown()
