@@ -1,58 +1,52 @@
 import pandas as pd
 import numpy as np
 import ta
-<<<<<<< HEAD
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 df = pd.read_parquet('data/forex_cfd/XAUUSD_M1.parquet')
 
-df['mean'] = df['close'].rolling(20).mean()
-df['sd'] = df['close'].rolling(20).std()
-df['adx'] = ta.trend.ADXIndicator(
-    high=df['high'],
-    low=df['low'],
-    close=df['close'],
-    window=20
-).adx()
-
-X = df['close']
-y = df['close'].shift(1)
-
-df['log_price'] = X - y
-
-df = df.dropna().copy()
-
-
-fig, ax = plt.subplots()
-ax.plot(df['time'], df['log_price'], color='green')
-
-plt.show()
-=======
-import matplotlib.pyplot as plt
-from statsmodels.tsa.stattools import adfuller
-
-df = pd.read_parquet('data/forex_cfd/XAUUSD_M1.parquet')
+df['sd_price'] = df['close'].rolling(100).std()
 
 df['log_price'] = np.log(df['close'])
 
-df['Xt1'] = df['log_price']
-df['Xt'] = df['log_price'].shift(1)
+X = df['log_price']
+y = df['log_price'].shift(1)
 
-X = df['Xt1']
-y = df['Xt']
+df['price'] = X - y
 
-df['data'] = X - y
+window = 100
+df['mean'] = df['price'].rolling(window).mean()
+df['sd'] = df['price'].rolling(window).std()
+
+df['zscore'] = (
+    df['price'] - df['mean']
+) /  df['sd']
 
 df = df.dropna().copy()
 
-result = adfuller(df['data'])
+quantile = df['zscore'].quantile(
+    [0.01,0.05,0.25,0.50,0.75,0.95,0.99]
+)
 
-print('ADF Statistic: ', result[0])
-print('p-Value ', result[1])
+total = len(df)
 
-fig, ax = plt.subplots()
-ax.plot(data)
+buy = (df['zscore'] < -1).sum()
+sell = (df['zscore'] > 1).sum()
 
-# plt.show()
->>>>>>> 994e305 (proses OU)
+print(quantile)
+print(f"Total data      : {total}")
+print(f"Buy signal      : {buy} ({buy/total*100:.2f}%)")
+print(f"Sell signal     : {sell} ({sell/total*100:.2f}%)")
+print(f"Total signal    : {buy+sell} ({(buy+sell)/total*100:.2f}%)")
+
+initial_balance = 10.00
+balance = initial_balance
+trades = []
+position = None
+
+for i in range(len(df)):
+    
+    # entry
+    if position is None:
+        
