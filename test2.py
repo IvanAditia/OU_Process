@@ -2,10 +2,14 @@ import MetaTrader5 as mt5
 
 mt5.initialize()
 
-info = mt5.symbol_info("XAUUSD")
+info = mt5.symbol_info("XAUUSD.pc")
 
-print("Contract Size :", info.trade_contract_size)
-print("Tick Size     :", info.trade_tick_size)
-print("Tick Value    :", info.trade_tick_value)
-
-mt5.shutdown()
+print(info.point)
+print(info.trade_contract_size)
+print(info.spread)
+print(info.trade_contract_size)
+print(info.trade_tick_size)
+print(info.trade_tick_value)
+print(info.volume_min)
+print(info.volume_step)
+print(info.volume_max)

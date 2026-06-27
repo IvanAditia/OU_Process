@@ -41,6 +41,9 @@ risk_percent = 0.1
 trades = []
 equity_curve = []
 position = None
+point = 0.01
+spread = 19 * point
+moves = []
 
 for i in range(len(df)-1):
     if balance <= 0:
@@ -48,6 +51,8 @@ for i in range(len(df)-1):
         break
 
     if balance >= 100:
+        risk_percent = 0.05
+    elif balance >= 1000:
         risk_percent = 0.01
 
     row = df.iloc[i]
@@ -60,8 +65,8 @@ for i in range(len(df)-1):
         risk = balance * risk_percent
 
         #buy
-        if row['zscore'] < -1.3:
-            entry = next_row['open']
+        if row['zscore'] < -2.6:
+            entry = next_row['open'] + spread
             sl = entry - row['sd_price']
             sl_distance = abs(entry-sl)
             if sl_distance <= 0:
@@ -80,8 +85,8 @@ for i in range(len(df)-1):
             }
 
         # sell
-        elif row['zscore'] > 1.3:
-            entry = next_row['open']
+        elif row['zscore'] > 2.6:
+            entry = next_row['open'] - spread
             sl = entry  + row['sd_price']
             sl_distance = abs(sl-entry)
             if sl_distance <= 0:
@@ -159,8 +164,6 @@ for i in range(len(df)-1):
 # hasil
 trade = pd.DataFrame(trades)
 
-trade.to_excel('data/hasilbacktest.xlsx')
-
 print(trade)
 
 print()
@@ -170,8 +173,8 @@ print(f"Total Trade : {len(trade)}")
 
 if len(trade):
 
-    win = (trade["reason"] == "TP").sum()
-    loss = (trade["reason"] == "SL").sum()
+    win = (trade["pnl"] > 0).sum()  
+    loss = (trade["pnl"] <= 0).sum()
 
     print(f"TP          : {win}")
     print(f"SL          : {loss}")
@@ -179,6 +182,12 @@ if len(trade):
 
     print(f"Total PnL   : {trade['pnl'].sum():.2f}")
     print(f"Final Bal   : {balance:.2f}")
+
+    print("Average Win :", trade.loc[trade.pnl > 0, "pnl"].mean())
+    print("Average Loss:", trade.loc[trade.pnl < 0, "pnl"].mean())
+    print("Profit Factor:",
+      trade.loc[trade.pnl > 0, "pnl"].sum() /
+      abs(trade.loc[trade.pnl < 0, "pnl"].sum()))
 
 # =========================
 # Equity Curve

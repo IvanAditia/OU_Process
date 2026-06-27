@@ -1,77 +1,44 @@
 import pandas as pd
-from sklearn.linear_model import LinearRegression
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
-df  = pd.read_parquet('data/ETHUSDT_FUNDING.parquet')
+df = pd.read_parquet('data/forex_cfd/XAUUSD_M1.parquet')
 
-data = df['fundingRate']
-
-window = 100
-
-df['zscore'] = np.nan
-
-for i in range(window, len(df)):
-        train = df.iloc[i-window:i].copy()
-
-        # membuat data
-        train['Xt'] = train['fundingRate']
-        train['Xt1'] = train['fundingRate'].shift(-1)
-        
-        train = train.dropna(subset=['Xt', 'Xt1']).copy()
-
-        X = train[['Xt']]
-        y = train['Xt1']
-
-        # membuat model regresi
-        model = LinearRegression()
-        model.fit(X, y)
-
-        # mengambil intersept dan phi(b)
-        a = model.intercept_
-        b = model.coef_[0]
-
-        if b <= 0 or b >= 1:
-            continue
-
-        # menghitung rata-rata(mu)
-        mu = a / (1 - b)
-
-        # menghitung residual(epsilon) = error regresi
-        residuals = y - model.predict(X)
-
-        # menghitung sigma(standar deviasi)
-        sigma = residuals.std()
-        sigma_eq = sigma / np.sqrt(1 - b**2)
-
-        # menghitung theta
-        theta = -np.log(b)
-
-        # menghitung half-life
-        hl = np.log(2) / theta
-
-        # menghitung Z-Score
-        current = df.iloc[i]['fundingRate'] #data saat ini
-        zscore = (current - mu ) / sigma_eq
-
-        df.loc[df.index[i], 'zscore']  = zscore
-
-
-df['markPrice'] = pd.to_numeric(
-    df['markPrice'],
-    errors='coerce'
+buy_candle = (
+    (df['open'].shift(2) < df['close'].shift(2)) &
+    (df['open'].shift(1) < df['close'].shift(1)) &
+    (df['open'] < df['close'])
 )
 
-df['future_return'] = (
-        df['markPrice'].shift(-24) / df['markPrice'] - 1
-)
-bins = [-999,-3,-2,-1,0,1,2,3,999]
+df = df.dropna().copy()
 
-df['bucket'] = pd.cut(df['zscore'], bins)
+results = []
 
-result = (
-    df.groupby('bucket')['future_return']
-    .mean()
-)
+for i in range(len(df)):
+    row = df.iloc[i-2]
 
-print(result)
+    if buy_candle.iloc[i]:
+        time = row['time']
+        open = row['open']
+        high = row['high']
+        low = row['low']
+        close = row['close']
+        volume = row['tick_volume']
+
+        results.append({
+            'time': time,
+            'open': open,
+            'high': high,
+            'low' : low,
+            'close' : close,
+            'volume' : volume
+        })
+
+result = pd.DataFrame(results)
+
+fig, ax = plt.subplots()
+ax.plot(result['volume'])
+ax.plot(df['tick_volume'])
+
+plt.show()
