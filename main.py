@@ -27,21 +27,6 @@ df['zscore'] = (
 
 df = df.dropna().copy()
 
-# quantile = df['zscore'].quantile(
-#     [0.01,0.05,0.25,0.50,0.75,0.95,0.99]
-# )
-
-# total = len(df)
-
-# buy = (df['zscore'] < -1).sum()
-# sell = (df['zscore'] > 1).sum()
-
-# print(quantile)
-# print(f"Total data      : {total}")
-# print(f"Buy signal      : {buy} ({buy/total*100:.2f}%)")
-# print(f"Sell signal     : {sell} ({sell/total*100:.2f}%)")
-# print(f"Total signal    : {buy+sell} ({(buy+sell)/total*100:.2f}%)")
-
 MIN_LOT = 0.01
 LOT_STEP = 0.01
 
@@ -52,7 +37,7 @@ def normalize_lot(lot):
 initial_balance = 10.00
 contract_size = 1
 balance = initial_balance
-risk_percent = 100
+risk_percent = 0.1
 trades = []
 equity_curve = []
 position = None
@@ -61,6 +46,9 @@ for i in range(len(df)-1):
     if balance <= 0:
         print('modal habis')
         break
+
+    if balance >= 100:
+        risk_percent = 0.01
 
     row = df.iloc[i]
     next_row = df.iloc[i + 1]
@@ -75,11 +63,14 @@ for i in range(len(df)-1):
         if row['zscore'] < -1.3:
             entry = next_row['open']
             sl = entry - row['sd_price']
-            sl_point = entry - sl
-            if sl_point <= 0:
+            sl_distance = abs(entry-sl)
+            if sl_distance <= 0:
                 continue
-            lot = risk / (sl_point * contract_size)
+            lot = risk / (sl_distance * contract_size)
             lot = normalize_lot(lot)
+            rugi = sl_distance * lot * contract_size
+            if rugi > risk:
+                continue
             position = {
                 'side' : 'BUY',
                 'entry' : entry,
@@ -92,11 +83,14 @@ for i in range(len(df)-1):
         elif row['zscore'] > 1.3:
             entry = next_row['open']
             sl = entry  + row['sd_price']
-            sl_point = sl - entry
-            if sl_point <= 0:
+            sl_distance = abs(sl-entry)
+            if sl_distance <= 0:
                 continue
-            lot = risk / (sl_point * contract_size)
+            lot = risk / (sl_distance * contract_size)
             lot = normalize_lot(lot)
+            rugi = sl_distance * lot * contract_size
+            if rugi > risk:
+                continue
             position = {
                 'side' : 'SELL',
                 'entry' : entry,
@@ -164,6 +158,8 @@ for i in range(len(df)-1):
 
 # hasil
 trade = pd.DataFrame(trades)
+
+trade.to_excel('data/hasilbacktest.xlsx')
 
 print(trade)
 
